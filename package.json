@@ -11,5 +11,8 @@
   },
   "repository": "https://github.com/i404788/xxh3-ts",
   "author": "casper@devdroplets.com",
-  "license": "BSD-2 Clause"
+  "license": "BSD-2 Clause",
+  "devDependencies": {
+    "@types/node":"^12.12.21"
+  }
 }

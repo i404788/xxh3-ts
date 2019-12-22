@@ -22,8 +22,8 @@ function round(acc: bigint, lane: bigint) {
 
 function XH64_mergeAccumulator(acc: bigint, accN: bigint) {
     acc = acc ^ round(0n, accN);
-    acc = acc * PRIME64_1
-    return acc + PRIME64_4;
+    acc = (acc * PRIME64_1) & mask64
+    return (acc + PRIME64_4) & mask64;
 }
 
 function XH64_convergeAccumulator(accs: BigUint64Array): bigint {
@@ -41,22 +41,22 @@ function XH64_accumulateRemainder(data: Buffer, acc: bigint): bigint {
         let lane = data.readBigUInt64LE(offset);
         acc = acc ^ round(0n, lane);
         acc = Rotl64(acc, 27n) * PRIME64_1;
-        acc = acc + PRIME64_4;
+        acc = (acc + PRIME64_4) & mask64;
         offset += 8;
     }
 
     if (data.byteLength - offset >= 4) {
         let lane = BigInt(data.readUInt32LE(offset));
-        acc = acc ^ (lane * PRIME64_1);
-        acc = Rotl64(acc, 23n) * PRIME64_2;
-        acc = acc + PRIME64_3;
+        acc = (acc ^ (lane * PRIME64_1)) & mask64;
+        acc = (Rotl64(acc, 23n) * PRIME64_2) & mask64;
+        acc = (acc + PRIME64_3) & mask64;
         offset += 4;
     }
 
     while (data.byteLength - offset >= 1) {
         let lane = BigInt(data.readUInt8(offset));
-        acc = acc ^ (lane * PRIME64_5);
-        acc = Rotl64(acc, 11n) * PRIME64_1;
+        acc = (acc ^ (lane * PRIME64_5)) & mask64;
+        acc = (Rotl64(acc, 11n) * PRIME64_1) & mask64;
         offset += 1;
     }
     return acc
@@ -83,15 +83,15 @@ function XH64_accumulate(data: Buffer, accs: BigUint64Array) {
 
 function XH64_mix(acc: bigint) {
     acc = acc ^ (acc >> 33n);
-    acc = acc * PRIME64_2;
+    acc = (acc * PRIME64_2) & mask64;
     acc = acc ^ (acc >> 29n);
-    acc = acc * PRIME64_3;
+    acc = (acc * PRIME64_3) & mask64;
     acc = acc ^ (acc >> 32n);
     return acc
 }
 
 function XXH64_small(data: Buffer, seed: bigint) {
-    let acc = seed + PRIME64_5;
+    let acc = (seed + PRIME64_5) & mask64;
     acc = XH64_accumulateRemainder(data, acc)
     return XH64_mix(acc)
 }
