@@ -3,7 +3,7 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "description": "xxhash implementation in pure typescript (using tc39 bigint), supports XXH64 & XXH3-128",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "scripts": {
     "prebuild": "rm -rf ./*.js ./*.d.ts",
     "build": "tsc",
@@ -13,6 +13,9 @@
   "author": "casper@devdroplets.com",
   "license": "BSD-2 Clause",
   "devDependencies": {
-    "@types/node":"^12.12.21"
+    "@types/node": "^12.12.21"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3"
   }
 }
