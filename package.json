@@ -3,7 +3,7 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "description": "xxhash implementation in pure typescript (using tc39 bigint), supports XXH64 & XXH3-128",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "scripts": {
     "prebuild": "rm -rf ./*.js ./*.d.ts",
     "build": "tsc",
