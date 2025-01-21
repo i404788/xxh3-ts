@@ -1,6 +1,6 @@
-if (!(globalThis as any).Buffer) {
-   (globalThis as any).Buffer = require('buffer/').Buffer;
-}
+// if (!(globalThis as any).Buffer) {
+//    (globalThis as any).Buffer = require('buffer/').Buffer;
+// }
 
 const n = (n: number | string) => BigInt(n)
 const PRIME64_1 = n('0x9E3779B185EBCA87');   /* 0b1001111000110111011110011011000110000101111010111100101010000111 */
@@ -9,6 +9,7 @@ const PRIME64_3 = n('0x165667B19E3779F9');   /* 0b000101100101011001100111101100
 const PRIME64_4 = n('0x85EBCA77C2B2AE63');   /* 0b1000010111101011110010100111011111000010101100101010111001100011 */
 const PRIME64_5 = n('0x27D4EB2F165667C5');
 const kkey = Buffer.from('b8fe6c3923a44bbe7c01812cf721ad1cded46de9839097db7240a4a4b7b3671fcb79e64eccc0e578825ad07dccff7221b8084674f743248ee03590e6813a264c3c2852bb91c300cb88d0658b1b532ea371644897a20df94e3819ef46a9deacd8a8fa763fe39c343ff9dcbbc7c70b4f1d8a51e04bcdb45931c89f7ec9d9787364eac5ac8334d3ebc3c581a0fffa1363eb170ddd51b7f0da49d316552629d4689e2b16be587d47a1fc8ff8b8d17ad031ce45cb3a8f95160428afd7fbcabb4b407e', 'hex')
+const mask128 = (n(1) << n(128)) - n(1);
 const mask64 = (n(1) << n(64)) - n(1);
 const mask32 = (n(1) << n(32)) - n(1);
 const STRIPE_LEN = 64
@@ -117,14 +118,14 @@ function XXH3_hashLong_128b(data: Buffer, seed: bigint) {
 
 
 function XXH3_mul128(a: bigint, b: bigint) {
-    const lll = a * b;
+    const lll = (a * b) & mask128;
     return (lll + (lll >> n(64))) & mask64;
 }
 
 function XXH3_mix16B(data: Buffer, key: Buffer) {
     return XXH3_mix2Accs(data, key)
-    // return XXH3_mul128(data.readBigUInt64LE(data_offset) ^ key.readBigUInt64LE(key_offset),
-    // data.readBigUInt64LE(data_offset + 8) ^ key.readBigUInt64LE(key_offset + 8));
+    // return XXH3_mul128(data.readBigUInt64LE(0) ^ key.readBigUInt64LE(0),
+    //     data.readBigUInt64LE(8) ^ key.readBigUInt64LE(8));
 }
 
 function XXH3_avalanche(h64: bigint) {

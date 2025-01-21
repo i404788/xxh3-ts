@@ -98,6 +98,7 @@ function XH64_mix(acc: bigint) {
 
 function XXH64_small(data: Buffer, seed: bigint) {
     let acc = (seed + PRIME64_5) & mask64;
+    acc += n(data.byteLength);
     acc = XH64_accumulateRemainder(data, acc)
     return XH64_mix(acc)
 }
