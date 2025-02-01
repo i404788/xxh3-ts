@@ -151,10 +151,27 @@ function XXH3_mul128(a: bigint, b: bigint) {
     return (lll + (lll >> n(64))) & mask64;
 }
 
-function XXH3_mix16B(data: Buffer, key: Buffer) {
-    return XXH3_mix2Accs(data, key)
-    // return XXH3_mul128(data.readBigUInt64LE(0) ^ key.readBigUInt64LE(0),
-    //     data.readBigUInt64LE(8) ^ key.readBigUInt64LE(8));
+function XXH3_mul128_fold64(a: bigint, b: bigint) {
+    const lll = (a * b) & mask128;
+    return (lll & mask64) ^ (lll >> n(64));
+}
+
+function XXH3_mix16B(data: Buffer, key: Buffer, seed: bigint) {
+    return XXH3_mul128_fold64((data.readBigUInt64LE(0) ^ (key.readBigUInt64LE(0) + seed)) & mask64,
+        (data.readBigUInt64LE(8) ^ (key.readBigUInt64LE(8) - seed)) & mask64);
+}
+
+
+function XXH3_mix32B(acc: bigint, data1: Buffer, data2: Buffer, key: Buffer, seed: bigint) {
+    let accl = acc & mask64;
+    let acch = (acc >> n(64)) & mask64;
+    accl += XXH3_mix16B(data1, key, seed);
+    accl ^= data2.readBigUInt64LE(0) + data2.readBigUInt64LE(8);
+    accl &= mask64;
+    acch += XXH3_mix16B(data2, getView(key, 16), seed);
+    acch ^= data1.readBigUInt64LE(0) + data1.readBigUInt64LE(8)
+    acch &= mask64;
+    return (acch << n(64)) | accl; 
 }
 
 function XXH3_avalanche(h64: bigint) {
@@ -217,11 +234,10 @@ function XXH3_len_4to8_128b(data: Buffer, key32: Buffer, seed: bigint) {
 
 function XXH3_len_9to16_128b(data: Buffer, key64: Buffer, seed: bigint) {
     const len = data.byteLength
-    const scratchbuf = Buffer.alloc(8);
     assert(len >= 9 && len <= 16);
     {
-        const bitflipl = key64.readBigUInt64LE(32) ^ key64.readBigUInt64LE(40);
-        const bitfliph = key64.readBigUInt64LE(48) ^ key64.readBigUInt64LE(56);
+        const bitflipl = ((key64.readBigUInt64LE(32) ^ key64.readBigUInt64LE(40)) + seed) & mask64;
+        const bitfliph = ((key64.readBigUInt64LE(48) ^ key64.readBigUInt64LE(56)) - seed) & mask64;
         const ll1 = data.readBigUInt64LE();
         let ll2 = data.readBigUInt64LE(len - 8);
 
@@ -252,33 +268,60 @@ function XXH3_len_0to16_128b(data: Buffer, seed: bigint) {
     return XXH3_avalanche64(seed ^ kkey.readBigUInt64LE(64) ^ kkey.readBigUInt64LE(72)) | (XXH3_avalanche64(seed ^ kkey.readBigUInt64LE(80) ^ kkey.readBigUInt64LE(88)) << n(64));
 }
 
+function inv64(x: bigint) {
+    // NOTE: `AND` fixes signedness (but because of 2's complement we need to re-add 1)
+    return (~x + n(1)) & mask64
+}
+
+function XXH3_len_17to128_128b(data: Buffer, secret: Buffer, seed: bigint) {
+    let acc = (n(data.byteLength)*PRIME64_1) & mask64;
+    let i = n(data.byteLength-1)/n(32);
+    while (i >= 0) {
+        let ni = Number(i);
+        // console.log(ni*16, data.byteLength-16*(ni+1), 32*ni)
+        acc = XXH3_mix32B(acc, getView(data, 16*ni), getView(data, data.byteLength-16*(ni+1)), getView(secret, 32*ni), seed)
+        i--;
+    }
+
+    let h128l = (acc + (acc >> n(64))) & mask64;
+    h128l = XXH3_avalanche(h128l);
+    let h128h = ((acc & mask64) * PRIME64_1) +
+                (acc >> n(64)) * PRIME64_4 +
+                (((n(data.byteLength)-seed) & mask64) * PRIME64_2);
+    h128h &= mask64;
+
+    h128h = inv64(XXH3_avalanche(h128h)); 
+    return h128l | (h128h << n(64));
+}
+
+function XXH3_len_129to240_128b(data: Buffer, secret: Buffer, seed: bigint) {
+    let acc = (n(data.byteLength)*PRIME64_1) & mask64;
+    for (let i = 32; i < 160; i += 32) {
+        acc = XXH3_mix32B(acc, getView(data, i-32), getView(data, i-16), getView(secret, i-32), seed)
+    }
+    acc = XXH3_avalanche(acc & mask64) | (XXH3_avalanche(acc >> n(64)) << n(64));
+    for (let i = 160; i <= data.byteLength; i += 32) {
+        acc = XXH3_mix32B(acc, getView(data, i-32), getView(data, i-16), getView(secret, 3+i-160), seed)
+    }
+    acc = XXH3_mix32B(acc, getView(data, data.byteLength-16), getView(data, data.byteLength - 32), getView(secret, 136-17-16), inv64(seed))
+    
+    let h128l = (acc + (acc >> n(64))) & mask64;
+    h128l = XXH3_avalanche(h128l);
+    let h128h = ((acc & mask64) * PRIME64_1) +
+                (acc >> n(64)) * PRIME64_4 +
+                (((n(data.byteLength)-seed) & mask64) * PRIME64_2);
+    h128h &= mask64;
+
+    h128h = inv64(XXH3_avalanche(h128h)); 
+    return h128l | (h128h << n(64));
+}
+
 // 16 byte min input
 export function XXH3_128(data: Buffer, seed: bigint = n(0)) {
     const len = data.byteLength
     if (len <= 16) return XXH3_len_0to16_128b(data, seed);
+    if (len <= 128) return XXH3_len_17to128_128b(data, kkey, seed);
+    if (len <= 240) return XXH3_len_129to240_128b(data, kkey, seed);
 
-    let acc1 = PRIME64_1 * (n(len) + seed)
-    let acc2 = n(0)
-    if (len > 32) {
-        if (len > 64) {
-            if (len > 96) {
-                if (len > 128) {
-                    return XXH3_hashLong_128b(data, seed);
-                }
-                acc1 += XXH3_mix16B(getView(data, 48), getView(kkey, 96));
-                acc2 += XXH3_mix16B(getView(data, len - 64), getView(kkey, 112));
-            }
-            acc1 += XXH3_mix16B(getView(data, 32), getView(kkey, 64));
-            acc2 += XXH3_mix16B(getView(data, len - 48), getView(kkey, 80));
-        }
-        acc1 += XXH3_mix16B(getView(data, 16), getView(kkey, 32));
-        acc2 += XXH3_mix16B(getView(data, len - 32), getView(kkey, 48));
-    }
-    acc1 += XXH3_mix16B(getView(data, 0), getView(kkey, 0));
-    acc2 += XXH3_mix16B(getView(data, len - 16), getView(kkey, 16));
-
-    const part1 = (acc1 + acc2) & mask64
-    const part2 = ((acc1 * PRIME64_3) + (acc2 * PRIME64_4) + ((n(len) - seed) * PRIME64_2)) & mask64;
-
-    return (XXH3_avalanche(part1) << n(64)) | mask64-XXH3_avalanche(part2)
+    return XXH3_hashLong_128b(data, seed);
 }
