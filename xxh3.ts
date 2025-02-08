@@ -1,6 +1,6 @@
-// if (!(globalThis as any).Buffer) {
-//    (globalThis as any).Buffer = require('buffer/').Buffer;
-// }
+if (!(globalThis as any).Buffer) {
+   (globalThis as any).Buffer = require('buffer/').Buffer;
+}
 
 const n = (n: number | string) => BigInt(n)
 
