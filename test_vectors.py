@@ -4,7 +4,7 @@ import secrets
 
 # test_str = "WAIDHOAWDHOAWIDHAOWIDHIOAIWODHAOWIDHAOWIDHOAIWHDOAIHWDOIAWHDOIAHWDOIAHWDOIHAWODIHAWODIHAWODIHA"
 
-for len in [0, 1, 2, 3, 6, 12, 18, 32+18, 64, 96, 128, 96*2, 256]:
+for len in [0, 1, 2, 3, 6, 12, 18, 32+18, 64, 96, 128, 96*2, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]:
     test_str = secrets.token_hex(len)[:len]
 
     local_xxh64_hash = xxhash.xxh64_intdigest(test_str.encode())

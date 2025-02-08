@@ -60,87 +60,85 @@ function rotl32(a: bigint, b: bigint) {
 
 function XXH3_accumulate_512(acc: BigUint64Array, data: Buffer, key: Buffer) {
     for (let i = 0; i < ACC_NB; i++) {
-        const left = 2 * i;
-        const right = 2 * i + 1;
-        const dataLeft = n(data.readUInt32LE(left * 4));
-        const dataRight = n(data.readUInt32LE(right * 4)); //XXH_readLE32(xdata + right);
-        acc[i] += XXH_mult32to64(dataLeft + n(key.readUInt32LE(left * 4)), dataRight + n(key.readUInt32LE(right * 4)))
-        acc[i] += dataLeft + (dataRight << n(32));
+        const data_val = data.readBigUInt64LE(i*8);
+        const data_key = data_val ^ key.readBigUInt64LE(i*8);
+        acc[i^1] += data_val;
+        acc[i] += XXH_mult32to64(data_key, data_key >> n(32));
     }
+    return acc
 }
 
 function XXH3_accumulate(acc: BigUint64Array, data: Buffer, key: Buffer, nbStripes: number) {
-    for (let n = 0, k = 0; n < nbStripes; n++) {
-        XXH3_accumulate_512(acc, getView(data, n * STRIPE_LEN), getView(key, k));
-        k += 2
+    for (let n = 0; n < nbStripes; n++) {
+        XXH3_accumulate_512(acc, getView(data, n*STRIPE_LEN), getView(key, n*8));
     }
+    return acc
 }
 
 function XXH3_scrambleAcc(acc: BigUint64Array, key: Buffer) {
     for (let i = 0; i < ACC_NB; i++) {
-        const left = 2 * i;
-        const right = 2 * i + 1;
-        acc[i] ^= acc[i] >> n(47);
-        const p1 = XXH_mult32to64((acc[i] & n('0xFFFFFFFF')), n(key.readUInt32LE(left)));
-        const p2 = XXH_mult32to64(acc[i] >> n(32), n(key.readUInt32LE(right)));
-        acc[i] = p1 ^ p2;
+        const key64 = key.readBigUInt64LE(i*8);
+        let acc64 = acc[i];
+        acc64 = xorshift64(acc64, n(47));
+        acc64 ^= key64;
+        acc64 *= PRIME32_1;
+        acc[i] = acc64 & mask64;
     }
+    return acc
 }
 
-function XXH3_mix2Accs(acc: Buffer, key: Buffer) {
-    return XXH3_mul128(acc.readBigUInt64LE(0) ^ key.readBigUInt64LE(0),
-        acc.readBigUInt64LE(_U64) ^ key.readBigUInt64LE(_U64));
+function XXH3_mix2Accs(acc: BigUint64Array, key: Buffer) {
+    return XXH3_mul128_fold64(acc[0] ^ key.readBigUInt64LE(0),
+        acc[1] ^ key.readBigUInt64LE(_U64));
 }
 
-function XXH3_mergeAccs(acc: Buffer, key: Buffer, start: bigint) {
+function XXH3_mergeAccs(acc: BigUint64Array, key: Buffer, start: bigint) {
     let result64 = start;
 
-    result64 += XXH3_mix2Accs(getView(acc, 0 * _U64), getView(key, 0 * _U32));
-    result64 += XXH3_mix2Accs(getView(acc, 2 * _U64), getView(key, 4 * _U32));
-    result64 += XXH3_mix2Accs(getView(acc, 4 * _U64), getView(key, 8 * _U32));
-    result64 += XXH3_mix2Accs(getView(acc, 6 * _U64), getView(key, 16 * _U32));
+    result64 += XXH3_mix2Accs(acc.slice(0), getView(key, 0 * _U32));
+    result64 += XXH3_mix2Accs(acc.slice(2), getView(key, 4 * _U32));
+    result64 += XXH3_mix2Accs(acc.slice(4), getView(key, 8 * _U32));
+    result64 += XXH3_mix2Accs(acc.slice(6), getView(key, 12 * _U32));
 
-    return XXH3_avalanche(result64);
+    return XXH3_avalanche(result64 & mask64);
 }
 
-const NB_KEYS = ((KEYSET_DEFAULT_SIZE - STRIPE_ELTS) / 2) | 0
-function XXH3_hashLong(acc: BigUint64Array, data: Buffer) {
-    const block_len = STRIPE_LEN * NB_KEYS;
-    const nb_blocks = (data.length / block_len) | 0;
 
-    // console.log( nb_blocks, block_len)
+function XXH3_hashLong(acc: BigUint64Array, data: Buffer, secret:Buffer, f_acc: (acc: BigUint64Array, data: Buffer, key: Buffer) => BigUint64Array, f_scramble: (acc: BigUint64Array, key: Buffer) => BigUint64Array) {
+    const nbStripesPerBlock = Math.floor((secret.byteLength - STRIPE_LEN) / 8);
+    const block_len = STRIPE_LEN * nbStripesPerBlock;
+    const nb_blocks = Math.floor((data.byteLength-1) / block_len);
+
     for (let n = 0; n < nb_blocks; n++) {
-        XXH3_accumulate(acc, getView(data, n * block_len), kkey, NB_KEYS);
-        XXH3_scrambleAcc(acc, getView(kkey, 4 * (KEYSET_DEFAULT_SIZE - STRIPE_ELTS)))
+        acc = XXH3_accumulate(acc, getView(data, n*block_len), secret, nbStripesPerBlock);
+        // acc = f_acc(acc, getView(data, n*block_len), secret, nbStripesPerBlock);
+        acc = f_scramble(acc, getView(secret, secret.byteLength - STRIPE_LEN));
     }
 
-    assert(data.length > STRIPE_LEN);
     {
-        const nbStripes = (data.length % block_len) / STRIPE_LEN | 0;
-        assert(nbStripes < NB_KEYS);
-        XXH3_accumulate(acc, getView(data, nb_blocks * block_len), kkey, nbStripes);
+        // Partial block
+        const nbStripes = Math.floor(((data.byteLength - 1) - (block_len * nb_blocks)) / STRIPE_LEN);
+        acc = XXH3_accumulate(acc, getView(data, nb_blocks * block_len), secret, nbStripes);
 
-        /* last stripe */
-        if (data.length & (STRIPE_LEN - 1)) {
-            const p = getView(data, data.length - STRIPE_LEN);
-            XXH3_accumulate_512(acc, p, getView(kkey, nbStripes * 2));
-        }
+        // Last Stripe
+        acc = f_acc(acc, getView(data, data.byteLength-STRIPE_LEN), getView(secret, secret.byteLength-STRIPE_LEN-7))
     }
-
+    return acc;
 }
 
-function XXH3_hashLong_128b(data: Buffer, seed: bigint) {
-    const acc = new BigUint64Array([seed, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME64_5, -seed, n(0)]);
-    const accbuf = Buffer.from(acc.buffer)
+function XXH3_hashLong_128b(data: Buffer, secret: Buffer, seed: bigint) {
+    // let acc = new BigUint64Array([seed, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME64_5, -seed, n(0)]);
+    let acc = new BigUint64Array([PRIME32_3, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME32_2, PRIME64_5, PRIME32_1]);
     assert(data.length > 128);
 
-    XXH3_hashLong(acc, data);
+    acc = XXH3_hashLong(acc, data, secret, XXH3_accumulate_512, XXH3_scrambleAcc);
 
     /* converge into final hash */
     assert(acc.length * 8 == 64);
     {
-        const low64 = XXH3_mergeAccs(accbuf, kkey, n(data.length) * PRIME64_1);
-        const high64 = XXH3_mergeAccs(accbuf, getView(kkey, 16), n(data.length + 1) * PRIME64_2);
+        const low64 = XXH3_mergeAccs(acc, getView(secret, 11), (n(data.byteLength) * PRIME64_1) & mask64);
+        const high64 = XXH3_mergeAccs(acc, getView(secret, secret.byteLength-STRIPE_LEN-11),
+                                      ~(n(data.byteLength) * PRIME64_2) & mask64);
         return (high64 << n(64)) | low64
     }
 }
@@ -323,5 +321,9 @@ export function XXH3_128(data: Buffer, seed: bigint = n(0)) {
     if (len <= 128) return XXH3_len_17to128_128b(data, kkey, seed);
     if (len <= 240) return XXH3_len_129to240_128b(data, kkey, seed);
 
-    return XXH3_hashLong_128b(data, seed);
+
+    const acc = new BigUint64Array([PRIME32_3, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME32_2, PRIME64_5, PRIME32_1]);
+
+
+    return XXH3_hashLong_128b(data, kkey, seed);
 }
