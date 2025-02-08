@@ -18,10 +18,6 @@ function toBufferBE(num: bigint): Buffer {
 }
 ```
 
-## XXH64
-XXH64 was derived from the specifications at https://github.com/Cyan4973/xxHash/blob/v0.7.0/doc/xxhash_spec.md
+## Compatibility
+XXH64 & XXH3-128 were derived from the [specifications](https://github.com/Cyan4973/xxHash/blob/v0.8.3/doc/xxhash_spec.md#xxh3-algorithm-overview) and is input/output compatible with [upstream v0.8.3](https://github.com/Cyan4973/xxHash/blob/v0.8.3)
 
-## XXH3-128
-XXH3-128 was ported from https://github.com/Cyan4973/xxHash/blob/v0.7.0/xxh3.h
-
-As there is no specificatino for XXH3 in the specification documents.
