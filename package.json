@@ -3,7 +3,7 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "description": "xxhash implementation in pure typescript (using tc39 bigint), supports XXH64 & XXH3-128",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "scripts": {
     "prebuild": "rm -r ./*.js ./*.d.ts",
     "build": "tsc",
@@ -15,7 +15,7 @@
   "devDependencies": {
     "@types/node": "^12.12.21"
   },
-  "dependencies": {
-    "buffer": "^6.0.3"
+  "peerDependencies": {
+    "buffer": "^6"
   }
 }
