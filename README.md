@@ -1,11 +1,11 @@
 # xxh3-ts
 xxhash implementation in pure typescript (using tc39 bigint), supports XXH64 & XXH3-128.
-These algorithms require Node.js >=12.x, because of `Buffer::readBigUInt64LE`
+These algorithms require Node.js >=12.x, because of `Buffer::readBigUInt64LE` or [`browser`](https://www.npmjs.com/package/buffer) polyfill in browser.
 
 ## Usage:
 ```ts
 import { XXH64 } from 'xxh3-ts';
-import { Buffer } from 'buffer';
+import { Buffer } from 'buffer'; // if in browser.
 
 let hash: bigint = XXH64(Buffer.from(JSON.stringify(v)))
 ```
