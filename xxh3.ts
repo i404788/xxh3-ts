@@ -126,7 +126,18 @@ function XXH3_hashLong(acc: BigUint64Array, data: Buffer, secret:Buffer, f_acc: 
     return acc;
 }
 
+// XXH3_initCustomSecret: the long-input path takes the seed through a derived secret
+function XXH3_initCustomSecret(seed: bigint) {
+    const secret = Buffer.alloc(kkey.byteLength);
+    for (let i = 0; i < kkey.byteLength; i += 16) {
+        secret.writeBigUInt64LE((kkey.readBigUInt64LE(i) + seed) & mask64, i);
+        secret.writeBigUInt64LE((kkey.readBigUInt64LE(i + 8) - seed) & mask64, i + 8);
+    }
+    return secret;
+}
+
 function XXH3_hashLong_128b(data: Buffer, secret: Buffer, seed: bigint) {
+    if (seed !== n(0)) secret = XXH3_initCustomSecret(seed);
     // let acc = new BigUint64Array([seed, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME64_5, -seed, n(0)]);
     let acc = new BigUint64Array([PRIME32_3, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME32_2, PRIME64_5, PRIME32_1]);
     assert(data.length > 128);
@@ -197,7 +208,7 @@ function XXH3_len_1to3_128b(data: Buffer, key32: Buffer, seed: bigint) {
     const len = data.byteLength
     assert(len > 0 && len <= 3);
 
-    const combined = n(data.readUInt8(len-1)) | n(len << 8) | n(data.readUInt8(0) << 16) | n(data.readUInt8(len>>1) << 24);
+    const combined = n(data.readUInt8(len-1)) | (n(len) << n(8)) | (n(data.readUInt8(0)) << n(16)) | (n(data.readUInt8(len>>1)) << n(24));
     const blow = (n(key32.readUInt32LE(0)) ^ n(key32.readUInt32LE(4))) + seed;
     const low = (combined ^ blow) & mask64;
     const bhigh = (n(key32.readUInt32LE(8)) ^ n(key32.readUInt32LE(12))) - seed;
@@ -218,6 +229,7 @@ function XXH3_len_4to8_128b(data: Buffer, key32: Buffer, seed: bigint) {
         const l1 = data.readUInt32LE(0)
         const l2 = data.readUInt32LE(len - 4);
         const l64 = n(l1) | (n(l2)<<n(32));
+        seed ^= bswap32(seed & mask32) << n(32);
         const bitflip = ((key32.readBigUInt64LE(16) ^ key32.readBigUInt64LE(24)) + seed) & mask64;
         const keyed = l64 ^ bitflip;
         let m128 = (keyed * (PRIME64_1 + (n(len) << n(2)))) & mask128;
@@ -234,14 +246,14 @@ function XXH3_len_9to16_128b(data: Buffer, key64: Buffer, seed: bigint) {
     const len = data.byteLength
     assert(len >= 9 && len <= 16);
     {
-        const bitflipl = ((key64.readBigUInt64LE(32) ^ key64.readBigUInt64LE(40)) + seed) & mask64;
-        const bitfliph = ((key64.readBigUInt64LE(48) ^ key64.readBigUInt64LE(56)) - seed) & mask64;
+        const bitflipl = ((key64.readBigUInt64LE(32) ^ key64.readBigUInt64LE(40)) - seed) & mask64;
+        const bitfliph = ((key64.readBigUInt64LE(48) ^ key64.readBigUInt64LE(56)) + seed) & mask64;
         const ll1 = data.readBigUInt64LE();
         let ll2 = data.readBigUInt64LE(len - 8);
 
         let m128 = (ll1 ^ ll2 ^ bitflipl) * PRIME64_1;
 
-        const m128_l = (m128 & mask64) + (n(len-1) << n(54));
+        const m128_l = ((m128 & mask64) + (n(len-1) << n(54))) & mask64;
         m128 = (m128 & (mask128 ^ mask64)) | m128_l; // eqv. to adding only to lower 64b
         ll2 ^= bitfliph;
         
