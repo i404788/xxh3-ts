@@ -7,7 +7,7 @@
   "scripts": {
     "prebuild": "rm -f ./*.js ./*.d.ts",
     "build": "tsc",
-    "prepublishOnly": "yarn build"
+    "prepublishOnly": "pnpm build"
   },
   "repository": "https://github.com/i404788/xxh3-ts",
   "author": "casper@devdroplets.com",
