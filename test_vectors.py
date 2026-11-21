@@ -21,10 +21,11 @@ for size in [0, 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 32+18, 64, 96, 128, 96*2, 240, 
     inputs.append(bytes(test_bytes))
 # 9-16 bytes: the low 64 bits of the product overflow when (len - 1) << 54 is added
 inputs.append(bytes.fromhex('ad57c678563f342e48659322'))
+seeds = [0, 1, 0x9e3779b1, 2**63 + 12345]
 
 failed = 0
 for test_bytes in inputs:
-    for seed in [0, 1, 0x9e3779b1, 2**63 + 12345]:
+    for seed in seeds:
         local_xxh64_hash = xxhash.xxh64_intdigest(test_bytes, seed)
         local_xxh3_128_hash = xxhash.xxh3_128_intdigest(test_bytes, seed)
 
@@ -39,4 +40,5 @@ for test_bytes in inputs:
 
         failed += (local_xxh64_hash != ref_xxh64_hash) + (local_xxh3_128_hash != ref_xxh3_128_hash)
 
+print(f"{failed=}/{len(inputs)*len(seeds)} compared to {xxhash.XXHASH_VERSION}")
 exit(1 if failed else 0)
