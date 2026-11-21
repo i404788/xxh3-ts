@@ -128,7 +128,7 @@ function XXH3_hashLong(acc: BigUint64Array, data: Buffer, secret:Buffer, f_acc: 
 
 function XXH3_hashLong_128b(data: Buffer, secret: Buffer, seed: bigint) {
     // let acc = new BigUint64Array([seed, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME64_5, -seed, n(0)]);
-    let acc = new BigUint64Array([PRIME32_3, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME32_2, PRIME64_5, PRIME32_1]);
+    let acc: BigUint64Array = new BigUint64Array([PRIME32_3, PRIME64_1, PRIME64_2, PRIME64_3, PRIME64_4, PRIME32_2, PRIME64_5, PRIME32_1]);
     assert(data.length > 128);
 
     acc = XXH3_hashLong(acc, data, secret, XXH3_accumulate_512, XXH3_scrambleAcc);
