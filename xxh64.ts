@@ -78,7 +78,7 @@ function XH64_accumulate(data: Buffer, accs: BigUint64Array) {
     }
 
     let acc = XH64_convergeAccumulator(accs)
-    acc += BigInt(data.byteLength)
+    acc = (acc + BigInt(data.byteLength)) & mask64
 
     if (fullStripes != data.byteLength / 32) {
         acc = XH64_accumulateRemainder(getView(data, fullStripes * 32), acc)
@@ -97,8 +97,7 @@ function XH64_mix(acc: bigint) {
 }
 
 function XXH64_small(data: Buffer, seed: bigint) {
-    let acc = (seed + PRIME64_5) & mask64;
-    acc += n(data.byteLength);
+    let acc = (seed + PRIME64_5 + n(data.byteLength)) & mask64;
     acc = XH64_accumulateRemainder(data, acc)
     return XH64_mix(acc)
 }

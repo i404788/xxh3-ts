@@ -21,7 +21,9 @@ for size in [0, 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 32+18, 64, 96, 128, 96*2, 240, 
     inputs.append(bytes(test_bytes))
 # 9-16 bytes: the low 64 bits of the product overflow when (len - 1) << 54 is added
 inputs.append(bytes.fromhex('ad57c678563f342e48659322'))
-seeds = [0, 1, 0x9e3779b1, 2**63 + 12345]
+# XXH64: with this seed, seed + PRIME64_5 is 2**64 - 1, so adding the length must wrap
+inputs.append(bytes.fromhex('3c9d5c3460be3120'))
+seeds = [0, 1, 0x9e3779b1, 2**63 + 12345, 2**64 - 0x27D4EB2F165667C5 - 1]
 
 failed = 0
 for test_bytes in inputs:
